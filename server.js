@@ -62,7 +62,16 @@ const app = express();
 const PORT = 3000;
 
 // Middleware
-app.use(cors());
+// Add to your server.js
+app.use(cors({
+  origin: [
+    /.*\.salesforce\.com$/,
+    /.*\.force\.com$/,
+    /.*\.lightning\.force\.com$/,
+    'http://localhost:3000'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.static('public'));
 
