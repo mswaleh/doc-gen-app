@@ -503,6 +503,353 @@ app.get('/api/example-variables', (req, res) => {
   res.json(examples);
 });
 
+// Add these routes to your existing server.js file
+
+// CORS configuration for Salesforce
+app.use((req, res, next) => {
+  // Allow Salesforce domains
+  const allowedOrigins = [
+    'https://*.salesforce.com',
+    'https://*.force.com',
+    'https://*.lightning.force.com',
+    'https://*.my.salesforce.com',
+    'http://localhost:3000' // For development
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.some(allowed => origin && origin.match(allowed.replace('*', '.*')))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN'); // Allow iframe embedding from same origin
+  next();
+});
+
+// New route: Get templates with Salesforce-specific metadata
+app.get('/api/salesforce/templates', (req, res) => {
+  try {
+    const salesforceTemplates = Object.values(templates).map(template => ({
+      id: template.id,
+      name: template.name,
+      variables: template.variables,
+      originalFormat: template.originalFormat,
+      hasFormatting: template.contentData.hasRichFormatting || false,
+      variableCount: template.variables.length,
+      salesforceCompatible: true,
+      mappableFields: getSalesforceFieldMappings(template.variables)
+    }));
+    
+    res.json(salesforceTemplates);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// New route: Generate document with Salesforce record data
+app.post('/api/salesforce/generate/:templateId', async (req, res) => {
+  try {
+    const template = templates[req.params.templateId];
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    const { recordData, outputFormat = 'pdf', recordId, objectType } = req.body;
+    
+    // Map Salesforce fields to template variables
+    const mappedVariables = mapSalesforceFields(recordData, template.variables);
+    
+    // Generate the document
+    const outputFileName = `${objectType}-${recordId}-${Date.now()}.${outputFormat}`;
+    const outputPath = path.join('generated', outputFileName);
+    
+    if (!fs.existsSync('generated')) {
+      fs.mkdirSync('generated');
+    }
+    
+    await generateFormattedDocument(template.contentData, mappedVariables, outputFormat, outputPath);
+    
+    // Convert to base64 for Salesforce
+    const fileBuffer = fs.readFileSync(outputPath);
+    const base64Data = fileBuffer.toString('base64');
+    
+    res.json({
+      success: true,
+      documentData: base64Data,
+      filename: outputFileName,
+      downloadUrl: `/download/${outputFileName}`,
+      format: outputFormat,
+      recordId: recordId,
+      templateName: template.name
+    });
+    
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// New route: Health check for Salesforce
+app.get('/api/salesforce/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    templatesCount: Object.keys(templates).length,
+    version: '1.0.0'
+  });
+});
+
+// Helper function to map Salesforce fields to template variables
+function mapSalesforceFields(recordData, templateVariables) {
+  const mappedVariables = {};
+  
+  // Common Salesforce field mappings
+  const fieldMappings = {
+    'name': ['Name', 'FirstName', 'LastName', 'Subject'],
+    'company': ['Account.Name', 'Company', 'CompanyName'],
+    'email': ['Email', 'Contact.Email'],
+    'phone': ['Phone', 'MobilePhone', 'WorkPhone'],
+    'address': ['BillingStreet', 'MailingStreet', 'Street'],
+    'city': ['BillingCity', 'MailingCity', 'City'],
+    'state': ['BillingState', 'MailingState', 'State'],
+    'postalcode': ['BillingPostalCode', 'MailingPostalCode', 'PostalCode'],
+    'country': ['BillingCountry', 'MailingCountry', 'Country'],
+    'date': ['CreatedDate', 'LastModifiedDate', 'CloseDate'],
+    'owner': ['Owner.Name', 'OwnerName'],
+    'amount': ['Amount', 'AnnualRevenue'],
+    'status': ['Status', 'StageName', 'Priority'],
+    'description': ['Description', 'Notes'],
+    'casenumber': ['CaseNumber'],
+    'priority': ['Priority'],
+    'type': ['Type'],
+    'industry': ['Industry'],
+    'title': ['Title'],
+    'department': ['Department']
+  };
+  
+  // First, try direct mapping
+  templateVariables.forEach(variable => {
+    const lowerVar = variable.toLowerCase();
+    
+    // Direct field match
+    if (recordData[variable]) {
+      mappedVariables[variable] = recordData[variable];
+      return;
+    }
+    
+    // Field mapping match
+    if (fieldMappings[lowerVar]) {
+      for (const fieldName of fieldMappings[lowerVar]) {
+        if (recordData[fieldName]) {
+          mappedVariables[variable] = recordData[fieldName];
+          break;
+        }
+      }
+    }
+    
+    // Fuzzy match
+    if (!mappedVariables[variable]) {
+      const fuzzyMatch = findFuzzyMatch(lowerVar, Object.keys(recordData));
+      if (fuzzyMatch && recordData[fuzzyMatch]) {
+        mappedVariables[variable] = recordData[fuzzyMatch];
+      }
+    }
+    
+    // Default value if no match
+    if (!mappedVariables[variable]) {
+      mappedVariables[variable] = `{{${variable}}}`;
+    }
+  });
+  
+  // Add special computed fields
+  mappedVariables['currentDate'] = new Date().toLocaleDateString();
+  mappedVariables['currentDateTime'] = new Date().toLocaleString();
+  mappedVariables['recordUrl'] = recordData.Id ? `https://yourinstance.salesforce.com/${recordData.Id}` : '';
+  
+  // Build full address if components exist
+  const addressComponents = [
+    recordData['BillingStreet'] || recordData['MailingStreet'],
+    recordData['BillingCity'] || recordData['MailingCity'],
+    recordData['BillingState'] || recordData['MailingState'],
+    recordData['BillingPostalCode'] || recordData['MailingPostalCode'],
+    recordData['BillingCountry'] || recordData['MailingCountry']
+  ].filter(Boolean);
+  
+  if (addressComponents.length > 0) {
+    mappedVariables['fullAddress'] = addressComponents.join(', ');
+  }
+  
+  return mappedVariables;
+}
+
+// Helper function for fuzzy matching
+function findFuzzyMatch(target, candidates) {
+  const targetLower = target.toLowerCase();
+  
+  // Exact match
+  let exactMatch = candidates.find(c => c.toLowerCase() === targetLower);
+  if (exactMatch) return exactMatch;
+  
+  // Contains match
+  let containsMatch = candidates.find(c => 
+    c.toLowerCase().includes(targetLower) || targetLower.includes(c.toLowerCase())
+  );
+  if (containsMatch) return containsMatch;
+  
+  // Similar match (simple algorithm)
+  let bestMatch = null;
+  let bestScore = 0;
+  
+  candidates.forEach(candidate => {
+    const candLower = candidate.toLowerCase();
+    let score = 0;
+    
+    // Character similarity
+    for (let char of targetLower) {
+      if (candLower.includes(char)) score++;
+    }
+    
+    // Length similarity bonus
+    const lengthDiff = Math.abs(targetLower.length - candLower.length);
+    score -= lengthDiff * 0.1;
+    
+    if (score > bestScore && score > targetLower.length * 0.6) {
+      bestScore = score;
+      bestMatch = candidate;
+    }
+  });
+  
+  return bestMatch;
+}
+
+// Helper function to get Salesforce field mappings for a template
+function getSalesforceFieldMappings(templateVariables) {
+  return templateVariables.map(variable => ({
+    templateVariable: variable,
+    suggestedSalesforceFields: getSuggestedFields(variable),
+    mappingConfidence: getMappingConfidence(variable)
+  }));
+}
+
+function getSuggestedFields(variable) {
+  const lowerVar = variable.toLowerCase();
+  
+  const suggestions = {
+    'name': ['Name', 'FirstName + LastName', 'Subject'],
+    'company': ['Account.Name', 'CompanyName'],
+    'email': ['Email', 'Contact.Email'],
+    'phone': ['Phone', 'MobilePhone'],
+    'address': ['BillingStreet', 'MailingStreet'],
+    'amount': ['Amount', 'AnnualRevenue'],
+    'date': ['CreatedDate', 'CloseDate'],
+    'owner': ['Owner.Name']
+  };
+  
+  return suggestions[lowerVar] || [variable];
+}
+
+function getMappingConfidence(variable) {
+  const highConfidence = ['name', 'email', 'phone', 'company', 'address'];
+  const mediumConfidence = ['amount', 'date', 'status', 'owner'];
+  
+  const lowerVar = variable.toLowerCase();
+  
+  if (highConfidence.includes(lowerVar)) return 'high';
+  if (mediumConfidence.includes(lowerVar)) return 'medium';
+  return 'low';
+}
+
+// Enhanced HTML page with Salesforce integration
+app.get('/salesforce', (req, res) => {
+  const { recordId, objectType, templateId } = req.query;
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Document Generator - Salesforce Integration</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/design-system/2.22.2/styles/salesforce-lightning-design-system.min.css">
+        <style>
+            body { margin: 0; padding: 20px; background: #f3f2f2; }
+            .salesforce-mode { border: 2px solid #0176d3; border-radius: 8px; }
+        </style>
+    </head>
+    <body class="slds-scope">
+        <div class="slds-card salesforce-mode">
+            <div class="slds-card__header">
+                <h2 class="slds-text-heading_medium">
+                    Document Generator - Salesforce Mode
+                </h2>
+                <p class="slds-text-body_small">
+                    Record ID: ${recordId || 'Not provided'} | Object: ${objectType || 'Not provided'}
+                </p>
+            </div>
+            <div class="slds-card__body slds-card__body_inner">
+                <div id="app">Loading...</div>
+            </div>
+        </div>
+        
+        <script>
+            // Listen for messages from Salesforce LWC
+            window.addEventListener('message', function(event) {
+                console.log('Received message:', event.data);
+                
+                if (event.data.source === 'salesforce') {
+                    handleSalesforceMessage(event.data);
+                }
+            });
+            
+            function handleSalesforceMessage(message) {
+                switch(message.action) {
+                    case 'recordData':
+                        populateRecordData(message.data);
+                        break;
+                    case 'selectTemplate':
+                        selectTemplate(message.data.templateId);
+                        break;
+                    case 'fillRecordData':
+                        fillFormWithRecordData(message.data.variables);
+                        break;
+                }
+            }
+            
+            function populateRecordData(data) {
+                console.log('Record data received:', data);
+                // Implement your UI updates here
+            }
+            
+            function selectTemplate(templateId) {
+                console.log('Template selected:', templateId);
+                // Implement template selection logic
+            }
+            
+            function fillFormWithRecordData(variables) {
+                console.log('Filling form with variables:', variables);
+                // Implement form filling logic
+            }
+            
+            // Notify Salesforce that the app is ready
+            function notifySalesforce(action, data) {
+                window.parent.postMessage({
+                    action: action,
+                    data: data,
+                    source: 'nodeapp'
+                }, '*');
+            }
+            
+            // Initialize
+            document.addEventListener('DOMContentLoaded', function() {
+                notifySalesforce('ready', { recordId: '${recordId}', objectType: '${objectType}' });
+            });
+        </script>
+    </body>
+    </html>
+  `);
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log('Upload templates and generate documents!');
