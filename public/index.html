@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Generator</title>
+    <!-- Salesforce Lightning Design System -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/design-system/2.22.2/styles/salesforce-lightning-design-system.min.css">
+    <style>
+        /* Additional SLDS overrides and custom styles */
+        .app-container {
+            background: #f3f2f2;
+            min-height: 100vh;
+        }
+
+        .app-header {
+            background: linear-gradient(45deg, #0176d3, #005fb2);
+            padding: 2rem;
+            border-bottom: 3px solid #014486;
+        }
+
+        .upload-dropzone {
+            border: 2px dashed #c9c7c5;
+            background: #fafaf9;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border-radius: 0.25rem;
+        }
+
+        .upload-dropzone:hover,
+        .upload-dropzone.slds-has-drag-over {
+            border-color: #0176d3;
+            background: #f3f9ff;
+            border-style: solid;
+        }
+
+        .template-card {
+            transition: all 0.2s ease;
+        }
+
+        .template-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .format-badge {
+            background: #0176d3;
+            color: white;
+            font-weight: 600;
+        }
+
+        .formatting-badge {
+            background: #04844b;
+            color: white;
+            font-weight: 600;
+        }
+
+        .variable-tag {
+            background: #f3f2f2;
+            border: 1px solid #c9c7c5;
+            color: #514f4d;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .result-content {
+            background: #f8f9fa;
+            border-left: 4px solid #0176d3;
+            font-family: 'Consolas', 'Monaco', monospace;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        .section-spacing {
+            margin-bottom: 2rem;
+        }
+
+        .recommendation-alert {
+            background: #ecfdf5;
+            border: 1px solid #84cc16;
+            color: #365314;
+        }
+    </style>
+</head>
+<body class="slds-scope">
+    <div class="app-container">
+        <!-- App Header -->
+        <div class="app-header slds-text-align_center">
+            <h1 class="slds-text-heading_large slds-text-color_inverse slds-m-bottom_x-small">
+                📄 Document Generator
+            </h1>
+            <p class="slds-text-body_regular slds-text-color_inverse-weak">
+                Upload templates, define variables, and generate personalized documents with Lightning Design System
+            </p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="slds-container_large slds-container_center slds-p-around_large">
+            
+            <!-- Upload Section -->
+            <div class="slds-card section-spacing">
+                <div class="slds-card__header slds-grid">
+                    <header class="slds-media slds-media_center slds-has-flexi-truncate">
+                        <div class="slds-media__figure">
+                            <span class="slds-icon_container slds-icon-utility-upload slds-current-color">
+                                <svg class="slds-icon slds-icon_small" aria-hidden="true">
+                                    <use xlink:href="#utility-upload"></use>
+                                </svg>
+                            </span>
+                        </div>
+                        <div class="slds-media__body">
+                            <h2 class="slds-card__header-title">
+                                <span class="slds-text-heading_medium">Upload Template</span>
+                            </h2>
+                        </div>
+                    </header>
+                </div>
+                <div class="slds-card__body slds-card__body_inner">
+                    <div class="upload-dropzone slds-p-around_large slds-text-align_center" id="uploadArea">
+                        <div class="slds-media slds-media_center slds-m-bottom_medium">
+                            <div class="slds-media__figure">
+                                <span class="slds-icon_container slds-icon-utility-upload slds-current-color">
+                                    <svg class="slds-icon slds-icon_large" aria-hidden="true">
+                                        <use xlink:href="#utility-upload"></use>
+                                    </svg>
+                                </span>
+                            </div>
+                            <div class="slds-media__body slds-p-left_medium">
+                                <p class="slds-text-body_regular slds-text-color_weak">
+                                    Drop your template file here or click to browse
+                                </p>
+                            </div>
+                        </div>
+                        <button class="slds-button slds-button_brand" onclick="document.getElementById('fileInput').click()">
+                            <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                <use xlink:href="#utility-upload"></use>
+                            </svg>
+                            Choose File
+                        </button>
+                        <input type="file" id="fileInput" class="slds-hide" accept=".txt,.md,.doc,.docx,.pdf">
+                        <p class="slds-text-body_small slds-text-color_weak slds-m-top_small">
+                            Supported formats: .txt, .md, .doc, .docx, .pdf
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Templates Section -->
+            <div class="slds-card section-spacing">
+                <div class="slds-card__header slds-grid">
+                    <header class="slds-media slds-media_center slds-has-flexi-truncate">
+                        <div class="slds-media__figure">
+                            <span class="slds-icon_container slds-icon-utility-knowledge_base slds-current-color">
+                                <svg class="slds-icon slds-icon_small" aria-hidden="true">
+                                    <use xlink:href="#utility-knowledge_base"></use>
+                                </svg>
+                            </span>
+                        </div>
+                        <div class="slds-media__body">
+                            <h2 class="slds-card__header-title">
+                                <span class="slds-text-heading_medium">Available Templates</span>
+                            </h2>
+                        </div>
+                    </header>
+                </div>
+                <div class="slds-card__body slds-card__body_inner">
+                    <div class="slds-grid slds-wrap slds-gutters" id="templatesGrid">
+                        <!-- Templates will be loaded here -->
+                        <div class="slds-col slds-size_1-of-1">
+                            <div class="slds-text-align_center slds-p-vertical_xx-large">
+                                <div class="slds-spinner_container" id="templatesSpinner">
+                                    <div class="slds-spinner slds-spinner_medium slds-spinner_brand" role="status">
+                                        <span class="slds-assistive-text">Loading templates...</span>
+                                        <div class="slds-spinner__dot-a"></div>
+                                        <div class="slds-spinner__dot-b"></div>
+                                    </div>
+                                </div>
+                                <p class="slds-text-body_regular slds-text-color_weak slds-m-top_medium">
+                                    No templates uploaded yet. Upload a template above to get started!
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generator Section -->
+            <div class="slds-card section-spacing slds-hide" id="generatorSection">
+                <div class="slds-card__header slds-grid">
+                    <header class="slds-media slds-media_center slds-has-flexi-truncate">
+                        <div class="slds-media__figure">
+                            <span class="slds-icon_container slds-icon-utility-setup slds-current-color">
+                                <svg class="slds-icon slds-icon_small" aria-hidden="true">
+                                    <use xlink:href="#utility-setup"></use>
+                                </svg>
+                            </span>
+                        </div>
+                        <div class="slds-media__body">
+                            <h2 class="slds-card__header-title">
+                                <span class="slds-text-heading_medium">Generate Document</span>
+                            </h2>
+                        </div>
+                    </header>
+                </div>
+                <div class="slds-card__body slds-card__body_inner">
+                    <!-- Fill Example Values Button -->
+                    <div class="slds-m-bottom_medium">
+                        <button class="slds-button slds-button_outline-brand" onclick="fillExampleValues()">
+                            <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                <use xlink:href="#utility-adduser"></use>
+                            </svg>
+                            Fill Example Values
+                        </button>
+                    </div>
+                    
+                    <!-- Format Selector -->
+                    <div class="slds-form-element slds-m-bottom_medium" id="formatSelector">
+                        <legend class="slds-form-element__legend slds-form-element__label slds-text-title">
+                            Output Format
+                        </legend>
+                        <div class="slds-form-element__control">
+                            <div class="slds-radio_button-group">
+                                <span class="slds-button slds-radio_button">
+                                    <input type="radio" name="outputFormat" id="formatTxt" value="txt" checked>
+                                    <label class="slds-radio_button__label" for="formatTxt">
+                                        <span class="slds-radio_faux">Text (.txt)</span>
+                                    </label>
+                                </span>
+                                <span class="slds-button slds-radio_button">
+                                    <input type="radio" name="outputFormat" id="formatDocx" value="docx">
+                                    <label class="slds-radio_button__label" for="formatDocx">
+                                        <span class="slds-radio_faux">Word (.docx)</span>
+                                    </label>
+                                </span>
+                                <span class="slds-button slds-radio_button">
+                                    <input type="radio" name="outputFormat" id="formatPdf" value="pdf">
+                                    <label class="slds-radio_button__label" for="formatPdf">
+                                        <span class="slds-radio_faux">PDF (.pdf)</span>
+                                    </label>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Variables Form -->
+                    <div class="slds-grid slds-wrap slds-gutters slds-m-bottom_medium" id="variableForm">
+                        <!-- Variables will be populated here -->
+                    </div>
+                    
+                    <!-- Generate Button -->
+                    <div class="slds-m-bottom_medium">
+                        <button class="slds-button slds-button_brand" onclick="generateDocument()">
+                            <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                <use xlink:href="#utility-file"></use>
+                            </svg>
+                            Generate Document
+                        </button>
+                    </div>
+                    
+                    <!-- Result Area -->
+                    <div class="slds-hide" id="resultArea">
+                        <div class="slds-section slds-is-open">
+                            <h3 class="slds-section__title slds-theme_shade">
+                                <span class="slds-truncate slds-p-horizontal_small" title="Generated Document">
+                                    Generated Document
+                                </span>
+                            </h3>
+                            <div class="slds-section__content">
+                                <div class="slds-box slds-theme_default">
+                                    <pre class="result-content slds-p-around_medium" id="resultContent"></pre>
+                                </div>
+                                <div class="slds-m-top_medium">
+                                    <a class="slds-button slds-button_success slds-hide" id="downloadBtn">
+                                        <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                            <use xlink:href="#utility-download"></use>
+                                        </svg>
+                                        Download Document
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="slds-notify_container slds-is-fixed" id="toastContainer"></div>
+
+    <!-- SLDS Icons SVG Sprite -->
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="0" height="0" style="position:absolute;">
+        <defs>
+            <symbol id="utility-upload" viewBox="0 0 52 52">
+                <path d="M42 18H30V6c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v12H10c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h12v12c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2V26h12c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2z"/>
+            </symbol>
+            <symbol id="utility-download" viewBox="0 0 52 52">
+                <path d="M38 30h-6v-8c0-1.1-.9-2-2-2h-8c-1.1 0-2 .9-2 2v8h-6c-1.1 0-1.6.7-.7 1.4l12 11c.8.7 2.2.7 3 0l12-11c.9-.7.4-1.4-.7-1.4zm-12 20c13.8 0 25-11.2 25-25S39.8 0 26 0 1 11.2 1 25s11.2 25 25 25z"/>
+            </symbol>
+            <symbol id="utility-file" viewBox="0 0 52 52">
+                <path d="M38.5 24.7L37 22c-.6-.8-1.8-1-2.7-.4l-1.9 1.3c-.3.2-.6.1-.8-.1l-1.9-2.4c-.2-.3-.2-.8.1-1l1.9-1.3c.8-.6 1.1-1.8.4-2.7l-1.5-2.7c-.6-.8-1.8-1.1-2.7-.4L25 14.6c-.3.2-.8.2-1 0l-1.9-1.3c-.8-.6-2.1-.4-2.7.4l-1.5 2.7c-.6.8-.4 2.1.4 2.7l1.9 1.3c.3.2.3.7.1 1l-1.9 2.4c-.2.3-.6.3-.8.1l-1.9-1.3c-.8-.6-2.1-.4-2.7.4l-1.5 2.7c-.6.8-.4 2.1.4 2.7l1.9 1.3c.3.2.3.7.1 1l-1.9 2.4c-.2.3-.2.8.1 1l1.9 1.3c.3.2.8.2 1 0l1.9-1.3c.8-.6 2.1-.4 2.7.4l1.5 2.7c.6.8 1.8 1.1 2.7.4l1.9-1.3c.3-.2.8-.2 1 0l1.9 1.3c.8.6 2.1.4 2.7-.4l1.5-2.7c.6-.8.4-2.1-.4-2.7l-1.9-1.3c-.3-.2-.3-.7-.1-1l1.9-2.4c.2-.3.6-.3.8-.1l1.9 1.3c.8.6 2.1.4 2.7-.4l1.5-2.7c.6-.8.4-2.1-.4-2.7z"/>
+            </symbol>
+            <symbol id="utility-knowledge_base" viewBox="0 0 52 52">
+                <path d="M48.5 9h-45C2.7 9 2 9.7 2 10.5v31c0 .8.7 1.5 1.5 1.5h45c.8 0 1.5-.7 1.5-1.5v-31c0-.8-.7-1.5-1.5-1.5zM8 39V13h36v26H8z"/>
+                <path d="M12 17h28v2H12zm0 6h28v2H12zm0 6h28v2H12zm0 6h20v2H12z"/>
+            </symbol>
+            <symbol id="utility-setup" viewBox="0 0 52 52">
+                <path d="M26 34c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zm0-12c-2.2 0-4 1.8-4 4s1.8 4 4 4 4-1.8 4-4-1.8-4-4-4z"/>
+                <path d="M49.3 24.7l-4.8-.9c-.3-1.1-.7-2.1-1.2-3.1l2.9-3.9c.6-.8.5-1.9-.2-2.6l-2.8-2.8c-.7-.7-1.8-.8-2.6-.2l-3.9 2.9c-1-.5-2-1-3.1-1.2l-.9-4.8c-.2-.9-1-1.6-1.9-1.6h-4c-.9 0-1.7.7-1.9 1.6l-.9 4.8c-1.1.3-2.1.7-3.1 1.2l-3.9-2.9c-.8-.6-1.9-.5-2.6.2l-2.8 2.8c-.7.7-.8 1.8-.2 2.6l2.9 3.9c-.5 1-1 2-1.2 3.1l-4.8.9c-.9.2-1.6 1-1.6 1.9v4c0 .9.7 1.7 1.6 1.9l4.8.9c.3 1.1.7 2.1 1.2 3.1l-2.9 3.9c-.6.8-.5 1.9.2 2.6l2.8 2.8c.7.7 1.8.8 2.6.2l3.9-2.9c1 .5 2 1 3.1 1.2l.9 4.8c.2.9 1 1.6 1.9 1.6h4c.9 0 1.7-.7 1.9-1.6l.9-4.8c1.1-.3 2.1-.7 3.1-1.2l3.9 2.9c.8.6 1.9.5 2.6-.2l2.8-2.8c.7-.7.8-1.8.2-2.6l-2.9-3.9c.5-1 1-2 1.2-3.1l4.8-.9c.9-.2 1.6-1 1.6-1.9v-4c0-.9-.7-1.7-1.6-1.9z"/>
+            </symbol>
+            <symbol id="utility-adduser" viewBox="0 0 52 52">
+                <path d="M26 14c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6zm0-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                <path d="M26 19c-7.2 0-13 3.9-13 10v3h26v-3c0-6.1-5.8-10-13-10zm15 13h4v4h4v4h-4v4h-4v-4h-4v-4h4v-4z"/>
+            </symbol>
+            <symbol id="utility-close" viewBox="0 0 52 52">
+                <path d="M31 22.4L29.6 21 26 24.6 22.4 21 21 22.4 24.6 26 21 29.6 22.4 31 26 27.4 29.6 31 31 29.6 27.4 26z"/>
+            </symbol>
+        </defs>
+    </svg>
+
+    <script>
+        let currentTemplate = null;
+        let exampleVariables = {};
+
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('slds-has-drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('slds-has-drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('slds-has-drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileUpload(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+
+        // Handle file upload
+        async function handleFileUpload(file) {
+            const formData = new FormData();
+            formData.append('template', file);
+
+            try {
+                showToast('Uploading template...', 'info');
+
+                const response = await fetch('/api/upload-template', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast('Template uploaded successfully!', 'success');
+                    loadTemplates();
+                } else {
+                    showToast('Error: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showToast('Upload failed: ' + error.message, 'error');
+            }
+        }
+
+        // Load templates
+        async function loadTemplates() {
+            try {
+                const response = await fetch('/api/templates');
+                const templates = await response.json();
+                
+                const grid = document.getElementById('templatesGrid');
+                const spinner = document.getElementById('templatesSpinner');
+                
+                if (templates.length === 0) {
+                    grid.innerHTML = `
+                        <div class="slds-col slds-size_1-of-1">
+                            <div class="slds-text-align_center slds-p-vertical_xx-large">
+                                <div class="slds-illustration slds-illustration_large">
+                                    <div class="slds-text-color_weak">
+                                        <h3 class="slds-text-heading_medium">No templates yet</h3>
+                                        <p class="slds-text-body_regular">Upload a template above to get started!</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                grid.innerHTML = templates.map(template => `
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-large-size_1-of-3">
+                        <div class="slds-card template-card">
+                            <div class="slds-card__header slds-grid">
+                                <header class="slds-media slds-media_center slds-has-flexi-truncate">
+                                    <div class="slds-media__body">
+                                        <h3 class="slds-card__header-title">
+                                            <span class="slds-text-heading_small slds-truncate" title="${template.name}">
+                                                ${template.name}
+                                            </span>
+                                        </h3>
+                                        <div class="slds-m-top_x-small">
+                                            <span class="slds-badge format-badge slds-m-right_xx-small">
+                                                ${(template.originalFormat || template.format || 'txt').toUpperCase()}
+                                            </span>
+                                            ${template.hasFormatting ? '<span class="slds-badge formatting-badge">FORMATTED</span>' : ''}
+                                        </div>
+                                    </div>
+                                </header>
+                            </div>
+                            <div class="slds-card__body slds-card__body_inner">
+                                <div class="slds-m-bottom_medium">
+                                    <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small">Variables:</p>
+                                    <div class="slds-grid slds-wrap slds-gutters_xxx-small">
+                                        ${template.variables.map(v => `
+                                            <div class="slds-col">
+                                                <span class="slds-badge variable-tag slds-text-body_small">{{${v}}}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                                <button class="slds-button slds-button_brand slds-size_1-of-1" onclick="selectTemplate('${template.id}')">
+                                    <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                                        <use xlink:href="#utility-file"></use>
+                                    </svg>
+                                    Use Template
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                showToast('Failed to load templates: ' + error.message, 'error');
+            }
+        }
+
+        // Select template for generation
+        async function selectTemplate(templateId) {
+            try {
+                const response = await fetch(`/api/templates/${templateId}`);
+                currentTemplate = await response.json();
+                
+                showGeneratorSection();
+                loadExampleVariables();
+            } catch (error) {
+                showToast('Failed to load template: ' + error.message, 'error');
+            }
+        }
+
+        // Show generator section
+        function showGeneratorSection() {
+            const section = document.getElementById('generatorSection');
+            section.classList.remove('slds-hide');
+            
+            const form = document.getElementById('variableForm');
+            form.innerHTML = currentTemplate.variables.map(variable => `
+                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                    <div class="slds-form-element">
+                        <label class="slds-form-element__label" for="${variable}">
+                            <span class="slds-text-body_small">{{${variable}}}</span>
+                        </label>
+                        <div class="slds-form-element__control">
+                            <input type="text" 
+                                   id="${variable}" 
+                                   name="${variable}" 
+                                   class="slds-input" 
+                                   placeholder="Enter value for ${variable}">
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Show format recommendation based on template
+            showFormatRecommendation();
+            
+            section.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Show format recommendation
+        function showFormatRecommendation() {
+            const formatSelector = document.getElementById('formatSelector');
+            const existingRecommendation = formatSelector.querySelector('.recommendation-alert');
+            if (existingRecommendation) {
+                existingRecommendation.remove();
+            }
+            
+            if (currentTemplate.hasFormatting || currentTemplate.originalFormat !== 'txt') {
+                const recommendation = document.createElement('div');
+                recommendation.className = 'slds-notify slds-notify_alert recommendation-alert slds-m-top_small';
+                
+                let recommendedFormat = currentTemplate.originalFormat || 'txt';
+                let message = '';
+                
+                if (currentTemplate.hasFormatting) {
+                    message = `💡 This template has formatting. For best results, choose <strong>${recommendedFormat.toUpperCase()}</strong> output to preserve the original styling.`;
+                } else {
+                    message = `💡 Original template format: <strong>${recommendedFormat.toUpperCase()}</strong>. Choose the same format for consistency.`;
+                }
+                
+                recommendation.innerHTML = `
+                    <div class="slds-notify__content">
+                        <h2 class="slds-text-heading_small">${message}</h2>
+                    </div>
+                `;
+                formatSelector.appendChild(recommendation);
+                
+                // Auto-select recommended format
+                const recommendedRadio = document.getElementById(`format${recommendedFormat.charAt(0).toUpperCase() + recommendedFormat.slice(1)}`);
+                if (recommendedRadio) {
+                    recommendedRadio.checked = true;
+                }
+            }
+        }
+
+        // Load example variables
+        async function loadExampleVariables() {
+            try {
+                const response = await fetch('/api/example-variables');
+                exampleVariables = await response.json();
+            } catch (error) {
+                console.error('Failed to load example variables:', error);
+            }
+        }
+
+        // Fill example values
+        function fillExampleValues() {
+            currentTemplate.variables.forEach(variable => {
+                const input = document.getElementById(variable);
+                if (input && exampleVariables[variable]) {
+                    input.value = exampleVariables[variable];
+                    // Add SLDS animation
+                    input.classList.add('slds-has-focus');
+                    setTimeout(() => input.classList.remove('slds-has-focus'), 1000);
+                }
+            });
+            showToast('Example values filled successfully!', 'success');
+        }
+
+        // Generate document
+        async function generateDocument() {
+            const variables = {};
+            
+            currentTemplate.variables.forEach(variable => {
+                const input = document.getElementById(variable);
+                variables[variable] = input.value || `{{${variable}}}`;
+            });
+
+            // Get selected output format
+            const formatRadios = document.getElementsByName('outputFormat');
+            let selectedFormat = 'txt';
+            for (const radio of formatRadios) {
+                if (radio.checked) {
+                    selectedFormat = radio.value;
+                    break;
+                }
+            }
+
+            try {
+                showToast('Generating document...', 'info');
+
+                const response = await fetch(`/api/generate/${currentTemplate.id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        variables: variables,
+                        format: selectedFormat
+                    })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showResult(result.content, result.downloadUrl, result.format, result.filename);
+                    showToast('Document generated successfully!', 'success');
+                } else {
+                    showToast('Generation failed: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showToast('Generation failed: ' + error.message, 'error');
+            }
+        }
+
+        // Show result
+        function showResult(content, downloadUrl, format, filename) {
+            const resultArea = document.getElementById('resultArea');
+            const resultContent = document.getElementById('resultContent');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            resultContent.textContent = content;
+            downloadBtn.href = downloadUrl;
+            downloadBtn.innerHTML = `
+                <svg class="slds-button__icon slds-button__icon_left" aria-hidden="true">
+                    <use xlink:href="#utility-download"></use>
+                </svg>
+                Download ${format.toUpperCase()} Document
+            `;
+            downloadBtn.classList.remove('slds-hide');
+            resultArea.classList.remove('slds-hide');
+            
+            // Update result area header to show format and formatting preservation
+            const resultHeader = resultArea.querySelector('.slds-section__title span');
+            let headerText = `Generated Document (${format.toUpperCase()})`;
+            if (currentTemplate.hasFormatting && format !== 'txt') {
+                headerText += ' - ✨ Formatting Preserved';
+            }
+            resultHeader.textContent = headerText;
+            
+            resultArea.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Show SLDS Toast
+        function showToast(message, type) {
+            const container = document.getElementById('toastContainer');
+            
+            // Remove existing toasts
+            const existingToasts = container.querySelectorAll('.slds-notify');
+            existingToasts.forEach(toast => toast.remove());
+            
+            const typeMap = {
+                'success': 'slds-notify_toast slds-theme_success',
+                'error': 'slds-notify_toast slds-theme_error',
+                'info': 'slds-notify_toast slds-theme_info',
+                'warning': 'slds-notify_toast slds-theme_warning'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `slds-notify ${typeMap[type] || typeMap.info}`;
+            toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+            
+            toast.innerHTML = `
+                <span class="slds-assistive-text">${type}</span>
+                <div class="slds-notify__content">
+                    <h2 class="slds-text-heading_small">${message}</h2>
+                </div>
+                <div class="slds-notify__close">
+                    <button class="slds-button slds-button_icon slds-button_icon-inverse" title="Close" onclick="this.closest('.slds-notify').remove()">
+                        <svg class="slds-button__icon" aria-hidden="true">
+                            <use xlink:href="#utility-close"></use>
+                        </svg>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                </div>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 5000);
+        }
+
+        // Load templates on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTemplates();
+        });
+    </script>
+</body>
+</html>

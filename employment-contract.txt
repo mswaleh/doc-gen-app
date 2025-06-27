@@ -1,0 +1,23 @@
+EMPLOYMENT CONTRACT
+
+This Employment Contract is entered into on {{date}} between {{company}} ("Company") and {{name}} ("Employee").
+
+POSITION AND DUTIES
+The Employee is hired for the position of {{position}} in the {{department}} department, reporting to {{manager}}.
+
+COMPENSATION
+The Employee will receive an annual salary of {{salary}}, paid in accordance with the Company's standard payroll practices.
+
+START DATE
+The Employee's start date will be {{startDate}}.
+
+CONTACT INFORMATION
+Employee Address: {{address}}
+Employee Phone: {{phone}}
+Employee Email: {{email}}
+
+This contract is governed by the laws of the state where the Company is located.
+
+Signed,
+{{company}}
+{{manager}}, Manager

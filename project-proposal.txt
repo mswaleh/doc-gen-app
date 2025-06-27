@@ -1,0 +1,30 @@
+PROJECT PROPOSAL
+
+Project Name: {{projectName}}
+Prepared for: {{company}}
+Contact: {{name}}
+Date: {{date}}
+
+PROJECT OVERVIEW
+This proposal outlines the scope and deliverables for {{projectName}}.
+
+CLIENT INFORMATION
+Company: {{company}}
+Contact Person: {{name}}
+Email: {{email}}
+Phone: {{phone}}
+
+PROJECT DETAILS
+Start Date: {{startDate}}
+Estimated Budget: {{amount}}
+Project Manager: {{manager}}
+
+DELIVERABLES
+The project will be completed by {{dueDate}} and will include all specified requirements as discussed.
+
+For questions about this proposal, please contact us at {{email}}.
+
+Thank you for considering our services.
+
+Best regards,
+Your Company Name

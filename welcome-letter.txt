@@ -1,0 +1,20 @@
+Welcome to {{company}}!
+
+Dear {{name}},
+
+We are thrilled to welcome you to the {{company}} team! Your first day as {{position}} will be {{startDate}}.
+
+GETTING STARTED
+- Your manager {{manager}} will meet you at 9:00 AM
+- You'll be working in the {{department}} department
+- Your workspace will be ready at {{address}}
+
+CONTACT INFORMATION
+If you have any questions before your start date, please contact:
+- Email: {{email}}
+- Phone: {{phone}}
+
+We look forward to having you on board and are excited about the contributions you'll make to our team.
+
+Best regards,
+The {{company}} Team

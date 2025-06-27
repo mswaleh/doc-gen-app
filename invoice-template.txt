@@ -1,0 +1,24 @@
+INVOICE
+
+Invoice Date: {{date}}
+Due Date: {{dueDate}}
+
+Bill To:
+{{name}}
+{{company}}
+{{address}}
+
+From:
+Your Company Name
+123 Business Street
+Business City, BC 12345
+
+PROJECT DETAILS
+Project: {{projectName}}
+Amount: {{amount}}
+
+Payment is due within 30 days of invoice date.
+
+Thank you for your business!
+
+Contact: {{email}} | {{phone}}
