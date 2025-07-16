@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud File Manager - Embedded</title>
+    <link rel="stylesheet" href="/assets/css/salesforce-lightning-design-system.min.css">
+    <link rel="stylesheet" href="/assets/css/embed.css">
+		<!-- Add this CSS to the existing style section in embed.html -->
+		<style>
+		/* Add to existing styles */
+		.custom-dropdown {
+		    position: relative;
+		    display: inline-block;
+		}
+
+		.custom-dropdown-menu {
+		    position: absolute;
+		    top: 100%;
+		    right: 0;
+		    z-index: 1000;
+		    min-width: 160px;
+		    background: white;
+		    border: 1px solid #d8dde6;
+		    border-radius: 0.25rem;
+		    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+		    opacity: 0;
+		    visibility: hidden;
+		    transform: translateY(-10px);
+		    transition: all 0.2s ease;
+		}
+
+		.custom-dropdown-menu.show {
+		    opacity: 1;
+		    visibility: visible;
+		    transform: translateY(0);
+		}
+
+		.custom-dropdown-menu ul {
+		    list-style: none;
+		    margin: 0;
+		    padding: 0.25rem 0;
+		}
+
+		.custom-dropdown-menu li {
+		    margin: 0;
+		}
+
+		.custom-dropdown-menu a {
+		    display: flex;
+		    align-items: center;
+		    padding: 0.5rem 1rem;
+		    text-decoration: none;
+		    color: #181818;
+		    font-size: 0.875rem;
+		    line-height: 1.25;
+		    transition: background-color 0.15s ease;
+		}
+
+		.custom-dropdown-menu a:hover {
+		    background-color: #f3f3f3;
+		    text-decoration: none;
+		}
+
+		.custom-dropdown-menu svg {
+		    width: 1rem;
+		    height: 1rem;
+		    margin-right: 0.5rem;
+		    fill: currentColor;
+		}
+		
+		/* Add to the <style> section in both files */
+
+		/* Control table column widths */
+		.slds-table th:nth-child(1), /* File Name */
+		.slds-table td:nth-child(1) {
+		    width: 35%;
+		    min-width: 200px;
+		}
+
+		.slds-table th:nth-child(2), /* Size */
+		.slds-table td:nth-child(2) {
+		    width: 15%;
+		    min-width: 80px;
+		}
+
+		.slds-table th:nth-child(3), /* Type */
+		.slds-table td:nth-child(3) {
+		    width: 20%;
+		    min-width: 120px;
+		    max-width: 150px;
+		}
+
+		.slds-table th:nth-child(4), /* Last Modified */
+		.slds-table td:nth-child(4) {
+		    width: 20%;
+		    min-width: 100px;
+		}
+
+		.slds-table th:nth-child(5), /* Actions */
+		.slds-table td:nth-child(5) {
+		    width: 10%;
+		    min-width: 60px;
+		}
+
+		/* Ensure table doesn't overflow */
+		.slds-table {
+		    table-layout: fixed;
+		    width: 100%;
+		}
+
+		/* Better truncation with ellipsis */
+		.slds-truncate {
+		    overflow: hidden;
+		    text-overflow: ellipsis;
+		    white-space: nowrap;
+		}
+		
+		/* Add this CSS to embed.html <style> section */
+
+		/* Fix modal text contrast */
+		.slds-modal {
+		    color: #181818;
+		}
+
+		.slds-modal__header h2,
+		.slds-modal__header p {
+		    color: #181818 !important;
+		}
+
+		.slds-modal__content {
+		    color: #181818;
+		}
+
+		.slds-modal__content p,
+		.slds-modal__content div,
+		.slds-modal__content span {
+		    color: #181818 !important;
+		}
+
+		/* Fix form elements in modals */
+		.slds-modal .slds-form-element__label {
+		    color: #181818 !important;
+		}
+
+		.slds-modal .slds-input {
+		    color: #181818 !important;
+		    background-color: white !important;
+		}
+
+		/* Fix progress text */
+		.progress-fill {
+		    color: white !important;
+		}
+
+		.slds-text-heading_small {
+		    color: #181818 !important;
+		}
+
+		.slds-text-body_small {
+		    color: #181818 !important;
+		}
+
+		/* Fix OCR results text */
+		.slds-modal .ocr-field-label,
+		.slds-modal .ocr-field-value {
+		    color: #181818 !important;
+		}
+
+		/* Fix notification alerts */
+		.slds-notify {
+		    color: #181818 !important;
+		}
+
+		.slds-notify__content {
+		    color: #181818 !important;
+		}
+
+		.slds-notify h2 {
+		    color: #181818 !important;
+		}
+		/* Fix embed toast notifications */
+		.embed-toast {
+		    position: fixed;
+		    top: 1rem;
+		    right: 1rem;
+		    z-index: 10000;
+		    min-width: 50%;
+		    max-width: 80%;
+		    background: white;
+		    border: 1px solid #d8dde6;
+		    border-radius: 0.25rem;
+		    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		    padding: 1rem;
+		    margin-bottom: 0.5rem;
+		    color: #181818 !important;
+		}
+
+		.embed-toast.info {
+		    border-left: 4px solid #0176d3;
+		    background-color: #f4f6fe;
+		}
+
+		.embed-toast.success {
+		    border-left: 4px solid #4bca81;
+		    background-color: #f3f9f4;
+		}
+
+		.embed-toast.warning {
+		    border-left: 4px solid #ffb75d;
+		    background-color: #fef8f3;
+		}
+
+		.embed-toast.error {
+		    border-left: 4px solid #ea001e;
+		    background-color: #fef7f7;
+		}
+
+		.embed-toast p {
+		    color: #181818 !important;
+		    margin: 0;
+		    font-size: 0.875rem;
+		    line-height: 1.5;
+		}
+
+		.embed-toast .slds-button__icon {
+		    fill: #706e6b;
+		}
+		
+		/* Fix select dropdown visibility issues in embed settings */
+
+		/* Fix select element styling */
+		.slds-select {
+		    background-color: white !important;
+		    color: #181818 !important;
+		    border: 1px solid #d8dde6 !important;
+		}
+
+		.slds-select:focus {
+		    background-color: white !important;
+		    color: #181818 !important;
+		    border-color: #0176d3 !important;
+		    box-shadow: 0 0 3px #0176d3 !important;
+		}
+
+		.slds-select option {
+		    background-color: white !important;
+		    color: #181818 !important;
+		}
+
+		.slds-select option:checked {
+		    background-color: #0176d3 !important;
+		    color: white !important;
+		}
+
+		.slds-select option:hover {
+		    background-color: #f3f3f3 !important;
+		    color: #181818 !important;
+		}
+
+		/* Fix input styling */
+		.slds-input {
+		    background-color: white !important;
+		    color: #181818 !important;
+		    border: 1px solid #d8dde6 !important;
+		}
+
+		.slds-input:focus {
+		    background-color: white !important;
+		    color: #181818 !important;
+		    border-color: #0176d3 !important;
+		    box-shadow: 0 0 3px #0176d3 !important;
+		}
+
+		.slds-input::placeholder {
+		    color: #706e6b !important;
+		}
+
+		/* Fix disabled select styling */
+		.slds-select:disabled {
+		    background-color: #f3f3f3 !important;
+		    color: #706e6b !important;
+		    border-color: #d8dde6 !important;
+		}
+
+		.slds-select:disabled option {
+		    background-color: #f3f3f3 !important;
+		    color: #706e6b !important;
+		}
+
+		/* Fix form labels */
+		.slds-form-element__label {
+		    color: #181818 !important;
+		    font-weight: 600;
+		}
+
+		/* Fix the settings box background */
+		#embedSettings {
+		    background-color: #f8f9fa !important;
+		    border: 1px solid #d8dde6 !important;
+		}
+
+		/* Alternative approach - reset SLDS theme overrides */
+		.slds-theme_shade {
+		    background-color: #f8f9fa !important;
+		}
+
+		/* Ensure select container has proper styling */
+		.slds-select_container {
+		    position: relative;
+		}
+
+		.slds-select_container .slds-select {
+		    -webkit-appearance: menulist !important;
+		    -moz-appearance: menulist !important;
+		    appearance: menulist !important;
+		}
+
+		/* Fix embed toast container */
+		#embedToastContainer {
+		    position: fixed;
+		    top: 1rem;
+		    right: 1rem;
+		    z-index: 10000;
+		    width: 100%;
+		    max-width: 600px;
+		    min-width: 300px;
+		}
+		</style>
+</head>
+<body class="slds-scope">
+    <div id="embedApp" class="embed-container">
+        <!-- Loading State -->
+        <div id="initialLoading" class="slds-text-align_center slds-p-around_large">
+            <div class="loading-spinner"></div>
+            <p class="slds-m-top_small">Initializing Cloud File Manager...</p>
+        </div>
+
+        <!-- Authentication Required -->
+        <div id="authRequired" class="slds-hide">
+            <div class="slds-notify slds-notify_alert slds-alert_warning slds-m-bottom_medium">
+                <span class="slds-assistive-text">Warning</span>
+                <h2 class="slds-text-heading_small">
+                    <svg class="slds-icon slds-icon_x-small slds-m-right_x-small" aria-hidden="true" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    </svg>
+                    Authentication Required
+                </h2>
+                <p>Please provide authentication parameters to access the file manager.</p>
+            </div>
+        </div>
+
+        <!-- Main Embedded Content -->
+        <div id="embedContent" class="slds-hide">
+            <!-- Quick Info Bar -->
+            <div class="embed-info-bar slds-box slds-theme_shade slds-m-bottom_small">
+                <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                    <div class="slds-col">
+                        <div class="slds-media slds-media_small">
+                            <div class="slds-media__figure">
+                                <span class="slds-icon_container slds-icon_container_circle slds-icon-standard-file">
+                                    <svg class="slds-icon slds-icon_small" aria-hidden="true" viewBox="0 0 24 24">
+                                        <path fill="currentColor" d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5.67-1.5 1.5-1.5 1.5.67 1.5 1.5zm3.5 6H9v-.5c0-1.38 2.24-2.5 5-2.5s5 1.12 5 2.5V16h-4z"/>
+                                    </svg>
+                                </span>
+                            </div>
+                            <div class="slds-media__body">
+                                <div class="slds-text-body_small">
+                                    <span id="platformInfo" class="slds-text-color_weak">No platform selected</span>
+                                </div>
+                                <div class="slds-text-body_small">
+                                    <span id="recordInfo" class="slds-text-color_weak">No record selected</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="slds-col slds-no-flex">
+                        <div class="slds-button-group" role="group">
+                            <button class="slds-button slds-button_icon slds-button_icon-border-filled" 
+                                    onclick="refreshEmbeddedFiles()" id="embedRefreshBtn" title="Refresh Files">
+                                <svg class="slds-button__icon" aria-hidden="true" viewBox="0 0 24 24">
+                                    <path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                                </svg>
+                                <span class="slds-assistive-text">Refresh</span>
+                            </button>
+                            <button class="slds-button slds-button_icon slds-button_icon-border-filled" 
+                                    onclick="showEmbedUploadModal()" id="embedUploadBtn" title="Upload File">
+                                <svg class="slds-button__icon" aria-hidden="true" viewBox="0 0 24 24">
+                                    <path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                                </svg>
+                                <span class="slds-assistive-text">Upload</span>
+                            </button>
+                            <button class="slds-button slds-button_icon slds-button_icon-border-filled" 
+                                    onclick="toggleEmbedSettings()" id="embedSettingsBtn" title="Settings">
+                                <svg class="slds-button__icon" aria-hidden="true" viewBox="0 0 24 24">
+                                    <path fill="currentColor" d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.22,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.22,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.68 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
+                                </svg>
+                                <span class="slds-assistive-text">Settings</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Panel (Collapsible) -->
+            <div id="embedSettings" class="slds-box slds-theme_shade slds-m-bottom_small slds-hide">
+                <div class="slds-grid slds-wrap slds-gutters_small">
+                    <div class="slds-col slds-size_1-of-3">
+                        <div class="slds-form-element">
+                            <label class="slds-form-element__label" for="embed-platform">Platform</label>
+                            <div class="slds-form-element__control">
+                                <div class="slds-select_container">
+                                    <select class="slds-select" id="embed-platform" onchange="handleEmbedPlatformChange()">
+                                        <option value="">Select Platform</option>
+                                        <option value="gcp">Google Cloud Platform</option>
+                                        <option value="aws">Amazon Web Services</option>
+                                        <option value="azure">Microsoft Azure</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="slds-col slds-size_1-of-3">
+                        <div class="slds-form-element">
+                            <label class="slds-form-element__label" for="embed-bucket">Bucket/Container</label>
+                            <div class="slds-form-element__control">
+                                <div class="slds-select_container">
+                                    <select class="slds-select" id="embed-bucket" onchange="handleEmbedBucketChange()" disabled>
+                                        <option value="">Select Bucket</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="slds-col slds-size_1-of-3">
+                        <div class="slds-form-element">
+                            <label class="slds-form-element__label" for="embed-record-id">Record ID</label>
+                            <div class="slds-form-element__control">
+                                <input type="text" id="embed-record-id" class="slds-input"
+                                       placeholder="Auto-detected from parent" onchange="handleEmbedRecordIdChange()" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            
+						<!-- Replace the embed files container section in embed.html -->
+						<div class="embed-files-container">
+						    <!-- Loading State -->
+						    <div id="embedFilesLoading" class="embed-loading slds-hide">
+						        <div class="loading-spinner"></div>
+						        <p class="slds-text-body_small slds-m-top_x-small">Loading files...</p>
+						    </div>
+
+						    <!-- Empty State -->
+						    <div id="embedEmptyState" class="embed-empty-state">
+						        <svg class="slds-icon slds-icon_medium slds-icon-text-default" aria-hidden="true" viewBox="0 0 24 24">
+						            <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 6h-4c-.55 0-1-.45-1-1s.45-1 1-1h4c.55 0 1 .45 1 1s-.45 1-1 1zm0 4h-4c-.55 0-1-.45-1-1s.45-1 1-1h4c.55 0 1 .45 1 1s-.45 1-1 1z"/>
+						        </svg>
+						        <h3 class="slds-text-heading_small slds-m-top_x-small">No files found</h3>
+						        <p class="slds-text-body_small slds-text-color_weak">Upload a file to get started</p>
+						    </div>
+
+						    <!-- Files Table -->
+						    <div id="embedFilesTable" class="slds-hide">
+						        <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped">
+						            <thead>
+						                <tr class="slds-line-height_reset">
+						                    <th class="slds-text-title_caps" scope="col">
+						                        <div class="slds-truncate" title="File Name">File Name</div>
+						                    </th>
+						                    <th class="slds-text-title_caps" scope="col">
+						                        <div class="slds-truncate" title="Size">Size</div>
+						                    </th>
+						                    <th class="slds-text-title_caps" scope="col">
+						                        <div class="slds-truncate" title="Type">Type</div>
+						                    </th>
+						                    <th class="slds-text-title_caps" scope="col">
+						                        <div class="slds-truncate" title="Last Modified">Last Modified</div>
+						                    </th>
+						                    <th class="slds-text-title_caps" scope="col">
+						                        <div class="slds-truncate" title="Actions">Actions</div>
+						                    </th>
+						                </tr>
+						            </thead>
+						            <tbody id="embedFilesTableBody">
+						                <!-- Files will be populated here dynamically -->
+						            </tbody>
+						        </table>
+						    </div>
+
+						    <!-- Error State -->
+						    <div id="embedErrorState" class="embed-error-state slds-hide">
+						        <svg class="slds-icon" aria-hidden="true" viewBox="0 0 24 24">
+						            <path fill="currentColor" d="M12 2L1 21h22L12 2zm1 16h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+						        </svg>
+						        <h3>Error Loading Files</h3>
+						        <p id="embedErrorMessage">An error occurred while loading files.</p>
+						        <button class="slds-button" onclick="refreshEmbeddedFiles()">Try Again</button>
+						    </div>
+						</div>
+						
+						
+        </div>
+    </div>
+
+    <!-- Embedded Modals Container -->
+    <div id="embedModalContainer"></div>
+
+    <!-- Toast Container -->
+    <div id="embedToastContainer"></div>    		
+				
+    <!-- Include the full embed.js if available -->				
+		<script src="/assets/js/apiClient.js"></script>
+		<script src="/assets/js/utils.js"></script>
+		<script src="/assets/js/embed.js"></script>
+		<script src="/assets/js/modals.js"></script>
+		<script src="/assets/js/fileManager.js"></script>
+		<script>
+		    // Only the initialization code here
+		    document.addEventListener('DOMContentLoaded', function() {
+		        
+		        // Check if running in iframe
+		        if (window.parent !== window) {
+		            // Running in iframe, try to get Salesforce context
+		            setTimeout(() => {
+		                window.parent.postMessage({
+		                    type: 'REQUEST_SALESFORCE_CONTEXT'
+		                }, '*');
+		            }, 100);
+		        }
+						
+						if (typeof initializeEmbeddedApp === 'function') {
+		            initializeEmbeddedApp();
+		        } else {
+		            console.error('initializeEmbeddedApp function not found');
+		            document.getElementById('initialLoading').classList.add('slds-hide');
+		            document.getElementById('authRequired').classList.remove('slds-hide');
+		        }
+		    });				
+		</script>
+</body>
+</html>

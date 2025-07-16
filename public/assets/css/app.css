@@ -1,0 +1,610 @@
+/* Cloud File Manager - Main Styles */
+
+/* Global Styles */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #f3f3f3;
+    line-height: 1.5;
+}
+
+/* Override SLDS styles for better integration */
+.slds-scope {
+    font-family: inherit;
+}
+
+/* Custom Header Styles */
+.slds-global-header_container {
+    background: linear-gradient(135deg, #1589ee 0%, #0070d2 100%);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.slds-global-header__logo {
+    display: flex;
+    align-items: center;
+    color: white;
+}
+
+.slds-global-header__logo .slds-icon {
+    fill: white;
+}
+
+/* Loading States */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #0070d2;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* File Upload Styles */
+.file-upload-area {
+    border: 2px dashed #d8dde6;
+    border-radius: 4px;
+    padding: 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    background-color: #fafaf9;
+}
+
+.file-upload-area:hover {
+    border-color: #0070d2;
+    background-color: #f4f6fe;
+}
+
+.file-upload-area.drag-over {
+    border-color: #0070d2;
+    background-color: #e8f4fd;
+    transform: scale(1.02);
+}
+
+.file-upload-icon {
+    font-size: 3rem;
+    color: #0070d2;
+    margin-bottom: 1rem;
+}
+
+/* Progress Bars */
+.upload-progress {
+    margin: 1rem 0;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background-color: #e5e5e5;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+    border-radius: 10px;
+    transition: width 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+/* File List Styles */
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border: 1px solid #d8dde6;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    background-color: white;
+    transition: all 0.2s ease;
+}
+
+.file-item:hover {
+    border-color: #0070d2;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+.file-icon {
+    width: 40px;
+    height: 40px;
+    margin-right: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background-color: #f3f3f3;
+}
+
+.file-icon.pdf { background-color: #ff6b6b; color: white; }
+.file-icon.image { background-color: #4ecdc4; color: white; }
+.file-icon.video { background-color: #45b7d1; color: white; }
+.file-icon.document { background-color: #96ceb4; color: white; }
+.file-icon.archive { background-color: #feca57; color: white; }
+.file-icon.other { background-color: #a0a0a0; color: white; }
+
+.file-details {
+    flex: 1;
+}
+
+.file-name {
+    font-weight: 600;
+    color: #181818;
+    margin-bottom: 0.25rem;
+}
+
+.file-meta {
+    font-size: 0.875rem;
+    color: #706e6b;
+}
+
+.file-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Modal Enhancements */
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+}
+
+.modal-content {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* OCR Results Styles */
+.ocr-results {
+    max-height: 500px;
+    overflow-y: auto;
+    border: 1px solid #d8dde6;
+    border-radius: 4px;
+    background-color: white;
+}
+
+.ocr-field {
+    display: flex;
+    border-bottom: 1px solid #f3f3f3;
+    padding: 0.75rem;
+}
+
+.ocr-field:last-child {
+    border-bottom: none;
+}
+
+.ocr-field-label {
+    font-weight: 600;
+    color: #0070d2;
+    min-width: 150px;
+    margin-right: 1rem;
+}
+
+.ocr-field-value {
+    flex: 1;
+    color: #181818;
+    word-break: break-word;
+}
+
+/* Redaction Interface Styles */
+.redaction-modal .slds-modal__container {
+    max-width: 90vw;
+    max-height: 90vh;
+    width: 1200px;
+    height: 800px;
+}
+
+.redaction-interface {
+    position: relative;
+    width: 100%;
+    height: 600px;
+    border: 1px solid #d8dde6;
+    background-color: #f9f9f9;
+    overflow: hidden;
+}
+
+.redaction-canvas {
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+}
+
+.redaction-tools {
+    padding: 1rem;
+    background-color: #f3f3f3;
+    border-bottom: 1px solid #d8dde6;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.redaction-color-picker {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.color-option {
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.color-option:hover,
+.color-option.selected {
+    border-color: #0070d2;
+    transform: scale(1.1);
+}
+
+/* Share Modal Styles */
+.share-url-container {
+    position: relative;
+}
+
+.share-url-input {
+    font-family: 'Courier New', monospace;
+    background-color: #f9f9f9;
+}
+
+.copy-success {
+    position: absolute;
+    top: -30px;
+    right: 0;
+    background-color: #28a745;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    animation: fadeInOut 3s ease-in-out;
+}
+
+@keyframes fadeInOut {
+    0%, 100% { opacity: 0; transform: translateY(10px); }
+    20%, 80% { opacity: 1; transform: translateY(0); }
+}
+
+/* Configuration Styles */
+.config-section {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    border: 1px solid #d8dde6;
+    border-radius: 8px;
+    background-color: white;
+}
+
+.config-section.connected {
+    border-color: #28a745;
+    background-color: #f8fff9;
+}
+
+.config-section.error {
+    border-color: #dc3545;
+    background-color: #fff8f8;
+}
+
+.config-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: #6c757d;
+}
+
+.status-indicator.connected { background-color: #28a745; }
+.status-indicator.error { background-color: #dc3545; }
+.status-indicator.warning { background-color: #ffc107; }
+
+/* Platform Selection Styles */
+.platform-card {
+    border: 2px solid #d8dde6;
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: white;
+}
+
+.platform-card:hover {
+    border-color: #0070d2;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.platform-card.selected {
+    border-color: #0070d2;
+    background-color: #f4f6fe;
+}
+
+.platform-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.platform-icon.gcp { color: #4285f4; }
+.platform-icon.aws { color: #ff9900; }
+.platform-icon.azure { color: #0078d4; }
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .slds-container_large {
+        padding: 1rem;
+    }
+    
+    .slds-grid.slds-wrap .slds-col {
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    .file-item {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .file-icon {
+        margin-right: 0;
+        margin-bottom: 0.5rem;
+    }
+    
+    .redaction-modal .slds-modal__container {
+        max-width: 95vw;
+        max-height: 95vh;
+        width: auto;
+        height: auto;
+    }
+}
+
+/* Accessibility Improvements */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus States */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+    outline: 2px solid #0070d2;
+    outline-offset: 2px;
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+    .file-upload-area {
+        border-width: 3px;
+    }
+    
+    .file-item:hover {
+        border-width: 3px;
+    }
+    
+    .platform-card:hover {
+        border-width: 3px;
+    }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .loading-spinner {
+        animation: none;
+        border-top-color: #0070d2;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #2a2a2a;
+        color: #ffffff;
+    }
+    
+    .file-item {
+        background-color: #3a3a3a;
+        border-color: #555;
+        color: #ffffff;
+    }
+    
+    .config-section {
+        background-color: #3a3a3a;
+        border-color: #555;
+        color: #ffffff;
+    }
+    
+    .modal-content {
+        background-color: #3a3a3a;
+        color: #ffffff;
+    }
+}
+
+/* Utility Classes */
+.cursor-pointer { cursor: pointer; }
+.cursor-not-allowed { cursor: not-allowed; }
+.user-select-none { user-select: none; }
+.word-break-all { word-break: break-all; }
+.text-ellipsis { 
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Animation Classes */
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.fade-out {
+    animation: fadeOut 0.3s ease-in-out;
+}
+
+.slide-up {
+    animation: slideUp 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Add these styles to both index.html and embed.html in the <style> section */
+
+/* Fix white text on white background issues */
+.slds-text-color_weak {
+    color: #706e6b !important;
+}
+
+.slds-icon-text-default {
+    fill: #706e6b !important;
+}
+
+/* Ensure proper text contrast */
+.slds-card .slds-text-color_weak {
+    color: #706e6b !important;
+}
+
+.embed-empty-state .slds-text-color_weak {
+    color: #706e6b !important;
+}
+
+.embed-info-bar .slds-text-color_weak {
+    color: #706e6b !important;
+}
+
+/* Fix modal text visibility */
+.slds-modal .slds-text-color_weak {
+    color: #706e6b !important;
+}
+
+/* Fix form help text */
+.slds-form-element__help {
+    color: #706e6b !important;
+}
+
+/* Fix assistive text */
+.slds-assistive-text {
+    position: absolute !important;
+    margin: -1px !important;
+    border: 0 !important;
+    padding: 0 !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
+    text-transform: none !important;
+    white-space: nowrap !important;
+}
+
+/* Ensure dropdown text is visible */
+.custom-dropdown-menu a {
+    color: #181818 !important;
+}
+
+.custom-dropdown-menu a:hover {
+    color: #181818 !important;
+    background-color: #f3f3f3 !important;
+}
+
+/* Fix table text */
+.slds-table td,
+.slds-table th {
+    color: #181818;
+}
+
+/* Fix button text */
+.slds-button_base {
+    color: #0176d3;
+}
+
+.slds-button_base:hover {
+    color: #014486;
+}
+
+/* Fix notification text */
+.slds-notify_toast {
+    color: #181818;
+}
+
+/* Fix empty state text */
+.embed-empty-state h3,
+.slds-text-heading_medium,
+.slds-text-heading_small {
+    color: #181818 !important;
+}
+
+/* Fix info bar text in embed */
+.embed-info-bar .slds-media__body {
+    color: #181818;
+}
+
+/* Fix settings panel text */
+.slds-form-element__label {
+    color: #181818 !important;
+}
+
+/* Ensure all body text is readable */
+.slds-text-body_regular,
+.slds-text-body_small {
+    color: #181818 !important;
+}
