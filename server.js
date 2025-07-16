@@ -1,374 +1,865 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-require('dotenv').config();
-
-// Create a simple logger if the logger module doesn't exist
-let logger;
-try {
-  logger = require('./src/utils/logger');
-} catch (err) {
-  logger = {
-    info: console.log,
-    warn: console.warn,
-    error: console.error
-  };
+// Generate basic DOCX
+async function generateBasicDocx(content, outputPath) {
+  const paragraphs = content.split('\n').map(line => 
+    new Paragraph({
+      children: [new TextRun(line)]
+    })
+  );
+  
+  const doc = new Document({
+    sections: [{
+      properties: {},
+      children: paragraphs
+    }]
+  });
+  
+  const buffer = await Packer.toBuffer(doc);
+  fs.writeFileSync(outputPath, buffer);
 }
+
+// Generate basic PDF
+async function generateBasicPdf(content, outputPath) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument();
+    doc.pipe(fs.createWriteStream(outputPath));
+    
+    // Split content into lines and add to PDF
+    const lines = content.split('\n');
+    lines.forEach((line, index) => {
+      if (index > 0) doc.moveDown();
+      doc.text(line, {
+        width: 500,
+        align: 'left'
+      });
+    });
+    
+    doc.end();
+    
+    doc.on('end', () => {
+      resolve();
+    });
+    
+    doc.on('error', (err) => {
+      reject(err);
+    });
+  });
+}// server.js
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const cors = require('cors');
+const mammoth = require('mammoth');
+const officegen = require('officegen');
+const PDFDocument = require('pdfkit');
+const pdfParse = require('pdf-parse');
+const { PDFDocument: PDFLib, rgb, StandardFonts } = require('pdf-lib');
+const { Document, Packer, Paragraph, TextRun } = require('docx');
+const PizZip = require('pizzip');
+const Docxtemplater = require('docxtemplater');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-// Trust proxy for rate limiting behind reverse proxies
-app.set('trust proxy', 1);
+// Middleware
+// Add to your server.js
+app.use(cors({
+  origin: [
+    /.*\.salesforce\.com$/,
+    /.*\.force\.com$/,
+    /.*\.lightning\.force\.com$/,
+    'http://localhost:3000'
+  ],
+  credentials: true
+}));
+app.use(express.json());
+app.use(express.static('public'));
 
-// Basic security middleware (simplified)
-try {
-  const helmet = require('helmet');
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: [
-          "'self'", 
-          "'unsafe-inline'", 
-          "https://cdnjs.cloudflare.com",
-          "https://*.cloudflare.com"
-        ],
-        scriptSrc: [
-          "'self'", 
-          "'unsafe-inline'", 
-          "https://cdnjs.cloudflare.com",
-          "https://*.cloudflare.com"
-        ],
-				scriptSrcAttr: ["'unsafe-inline'"], // Add this line
-        fontSrc: [
-          "'self'", 
-          "https://cdnjs.cloudflare.com",
-          "data:"
-        ],
-        imgSrc: ["'self'", "data:", "blob:", "https:"],
-        connectSrc: ["'self'", "https:"],
-        frameSrc: ["'self'"]
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = 'uploads';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir);
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.txt', '.md', '.doc', '.docx', '.pdf'];
+    const fileExt = path.extname(file.originalname).toLowerCase();
+    
+    if (allowedTypes.includes(fileExt)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Unsupported file type. Please upload .txt, .md, .doc, .docx, or .pdf files.'));
+    }
+  }
+});
+
+// Store templates and their variables
+let templates = {};
+
+// Extract text content and formatting from various file types
+async function extractContentFromFile(filePath, originalName) {
+  const fileExt = path.extname(originalName).toLowerCase();
+  
+  try {
+    switch (fileExt) {
+      case '.txt':
+      case '.md':
+        const textContent = fs.readFileSync(filePath, 'utf8');
+        return {
+          text: textContent,
+          formatting: null,
+          type: 'text',
+          originalPath: filePath
+        };
+        
+      case '.doc':
+      case '.docx':
+        // Extract both text and preserve the original file for templating
+        const textResult = await mammoth.extractRawText({ path: filePath });
+        
+        // Store original file for template-based processing
+        return {
+          text: textResult.value,
+          formatting: 'docx',
+          type: 'docx',
+          originalPath: filePath,
+          hasRichFormatting: true
+        };
+        
+      case '.pdf':
+        const pdfBuffer = fs.readFileSync(filePath);
+        const pdfData = await pdfParse(pdfBuffer);
+        
+        // Store the original PDF for format preservation
+        return {
+          text: pdfData.text,
+          originalPath: filePath,
+          formatting: 'pdf',
+          type: 'pdf',
+          metadata: pdfData.info,
+          hasRichFormatting: true
+        };
+        
+      default:
+        throw new Error('Unsupported file format');
+    }
+  } catch (error) {
+    throw new Error(`Failed to extract content from ${fileExt} file: ${error.message}`);
+  }
+}
+
+// Generate document with preserved formatting using template approach
+async function generateFormattedDocument(templateData, variables, format, outputPath) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      switch (templateData.type) {
+        case 'docx':
+          if (format === 'docx') {
+            // Use docxtemplater for true format preservation
+            await generateDocxWithTemplating(templateData.originalPath, variables, outputPath);
+          } else if (format === 'pdf') {
+            // Convert formatted DOCX to PDF
+            await generatePdfFromDocx(templateData.originalPath, variables, outputPath);
+          } else {
+            // Fallback to text
+            const content = replaceVariables(templateData.text, variables);
+            fs.writeFileSync(outputPath, content);
+          }
+          break;
+          
+        case 'pdf':
+          if (format === 'pdf') {
+            // Use advanced PDF templating
+            await generatePdfWithTemplating(templateData.originalPath, variables, outputPath);
+          } else if (format === 'docx') {
+            // Convert PDF template to DOCX with variables
+            await generateDocxFromPdf(templateData.text, variables, outputPath);
+          } else {
+            // Text output
+            const content = replaceVariables(templateData.text, variables);
+            fs.writeFileSync(outputPath, content);
+          }
+          break;
+          
+        case 'text':
+        default:
+          const content = replaceVariables(templateData.text, variables);
+          if (format === 'docx') {
+            await generateBasicDocx(content, outputPath);
+          } else if (format === 'pdf') {
+            await generateBasicPdf(content, outputPath);
+          } else {
+            fs.writeFileSync(outputPath, content);
+          }
+          break;
+      }
+      resolve();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+// Generate DOCX with preserved formatting using docxtemplater
+async function generateDocxWithTemplating(templatePath, variables, outputPath) {
+  try {
+    // Read the template file
+    const content = fs.readFileSync(templatePath, 'binary');
+    const zip = new PizZip(content);
+    
+    // Create docxtemplater instance
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+    });
+    
+    // Set template variables
+    doc.setData(variables);
+    
+    try {
+      // Render the document
+      doc.render();
+    } catch (error) {
+      // If templater fails, fall back to text replacement approach
+      console.warn('Docxtemplater failed, falling back to text replacement:', error);
+      await generateDocxFallback(templatePath, variables, outputPath);
+      return;
+    }
+    
+    // Generate and save the document
+    const buf = doc.getZip().generate({ type: 'nodebuffer' });
+    fs.writeFileSync(outputPath, buf);
+    
+  } catch (error) {
+    console.error('DOCX templating failed:', error);
+    // Fallback to basic DOCX generation
+    const content = replaceVariables(fs.readFileSync(templatePath, 'utf8'), variables);
+    await generateBasicDocx(content, outputPath);
+  }
+}
+
+// Fallback DOCX generation when templating fails
+async function generateDocxFallback(templatePath, variables, outputPath) {
+  try {
+    // Extract text and replace variables
+    const result = await mammoth.extractRawText({ path: templatePath });
+    const content = replaceVariables(result.value, variables);
+    
+    // Generate new DOCX with the content
+    await generateBasicDocx(content, outputPath);
+  } catch (error) {
+    throw new Error('Failed to generate DOCX document: ' + error.message);
+  }
+}
+
+// Generate PDF with advanced templating
+async function generatePdfWithTemplating(templatePath, variables, outputPath) {
+  try {
+    // Read the original PDF
+    const existingPdfBytes = fs.readFileSync(templatePath);
+    const pdfDoc = await PDFLib.load(existingPdfBytes);
+    
+    // Get all pages
+    const pages = pdfDoc.getPages();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    
+    // Extract text to find variable positions
+    const pdfBuffer = fs.readFileSync(templatePath);
+    const pdfData = await pdfParse(pdfBuffer);
+    let textContent = pdfData.text;
+    
+    // Replace variables in text content
+    for (const [key, value] of Object.entries(variables)) {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      textContent = textContent.replace(regex, value || '');
+    }
+    
+    // Create a new PDF with the processed content overlaid on original
+    // This preserves the background formatting while updating text
+    for (let i = 0; i < pages.length; i++) {
+      const page = pages[i];
+      const { width, height } = page.getSize();
+      
+      // Find and replace variables on each page
+      for (const [key, value] of Object.entries(variables)) {
+        // This is a simplified approach - in production you'd want more sophisticated text detection
+        const variablePattern = `{{${key}}}`;
+        
+        // For demo purposes, we'll overlay text at common positions
+        // In a real implementation, you'd parse the PDF structure to find exact positions
+        page.drawText(String(value || ''), {
+          x: 50,
+          y: height - 100 - (Object.keys(variables).indexOf(key) * 25),
+          size: 12,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
       }
     }
-  }));
-} catch (err) {
-  logger.warn('Helmet not available, skipping security headers');
+    
+    // Save the modified PDF
+    const pdfBytes = await pdfDoc.save();
+    fs.writeFileSync(outputPath, pdfBytes);
+    
+  } catch (error) {
+    console.error('PDF templating failed, using fallback:', error);
+    // Fallback to creating a new PDF
+    const content = replaceVariables('Original PDF content:\n\n' + Object.entries(variables).map(([k, v]) => `${k}: ${v}`).join('\n'), {});
+    await generateBasicPdf(content, outputPath);
+  }
 }
 
-// CORS configuration
-const corsOptions = {
-  origin: function (origin, callback) {
-    // In development, allow all origins
-    if (process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
+// Generate PDF from DOCX template
+async function generatePdfFromDocx(templatePath, variables, outputPath) {
+  try {
+    // First generate DOCX with variables
+    const tempDocxPath = outputPath.replace('.pdf', '.temp.docx');
+    await generateDocxWithTemplating(templatePath, variables, tempDocxPath);
+    
+    // Convert DOCX to PDF (this would require additional libraries like libreoffice-convert)
+    // For now, we'll extract text and create a PDF
+    const result = await mammoth.extractRawText({ path: tempDocxPath });
+    await generateBasicPdf(result.value, outputPath);
+    
+    // Clean up temp file
+    if (fs.existsSync(tempDocxPath)) {
+      fs.unlinkSync(tempDocxPath);
     }
     
-    const allowedOrigins = [
-      /^https:\/\/.*\.salesforce\.com$/,
-      /^https:\/\/.*\.force\.com$/,
-      /^https:\/\/.*\.servicenow\.com$/,
-      /^http:\/\/localhost:\d+$/
-    ];
+  } catch (error) {
+    console.error('DOCX to PDF conversion failed:', error);
+    // Fallback
+    const content = replaceVariables('Template content with variables:\n\n' + Object.entries(variables).map(([k, v]) => `${k}: ${v}`).join('\n'), {});
+    await generateBasicPdf(content, outputPath);
+  }
+}
 
-    if (!origin) return callback(null, true);
+// Generate DOCX from PDF template
+async function generateDocxFromPdf(textContent, variables, outputPath) {
+  const content = replaceVariables(textContent, variables);
+  await generateBasicDocx(content, outputPath);
+}
+
+// Extract variables from template content
+function extractVariables(content) {
+  const variableRegex = /\{\{(\w+)\}\}/g;
+  const variables = [];
+  let match;
+  
+  while ((match = variableRegex.exec(content)) !== null) {
+    if (!variables.includes(match[1])) {
+      variables.push(match[1]);
+    }
+  }
+  
+  return variables;
+}
+
+// Replace variables in template with actual values
+function replaceVariables(template, variables) {
+  let result = template;
+  
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    result = result.replace(regex, value);
+  }
+  
+  return result;
+}
+
+// Routes
+
+// Upload template
+app.post('/api/upload-template', upload.single('template'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const filePath = req.file.path;
+    const originalName = req.file.originalname;
     
-    const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      logger.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
-};
+    // Extract content and formatting from file
+    const contentData = await extractContentFromFile(filePath, originalName);
+    const variables = extractVariables(contentData.text);
+    
+    const templateId = Date.now().toString();
+    const fileExt = path.extname(originalName).toLowerCase();
+    
+    templates[templateId] = {
+      id: templateId,
+      name: originalName,
+      contentData: contentData, // Store full content data including formatting
+      variables: variables,
+      filePath: filePath,
+      originalFormat: fileExt.substring(1) // Remove the dot
+    };
 
-app.use(cors(corsOptions));
-
-// Optional rate limiting
-try {
-  const rateLimit = require('express-rate-limit');
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100,
-    message: 'Too many requests from this IP, please try again later.',
-    standardHeaders: true,
-    legacyHeaders: false
-  });
-  app.use(limiter);
-} catch (err) {
-  logger.warn('Rate limiting not available, skipping');
-}
-
-// Optional compression and logging
-try {
-  const compression = require('compression');
-  app.use(compression());
-} catch (err) {
-  logger.warn('Compression not available, skipping');
-}
-
-try {
-  const morgan = require('morgan');
-  app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } }));
-} catch (err) {
-  logger.warn('Morgan logging not available, skipping');
-}
-
-// Body parsing middleware
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Optional session middleware
-try {
-  const session = require('express-session');
-  app.use(session({
-    secret: process.env.SESSION_SECRET || 'fallback-secret-key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    }
-  }));
-} catch (err) {
-  logger.warn('Session middleware not available, skipping');
-}
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/assets', express.static(path.join(__dirname, 'public/assets')));
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0'
-  });
+    res.json({
+      templateId: templateId,
+      name: originalName,
+      variables: variables,
+      format: fileExt.substring(1),
+      hasFormatting: contentData.hasRichFormatting || false
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// Create a simple auth middleware if the real one doesn't exist
-let authenticateToken;
-try {
-  const authMiddleware = require('./src/middleware/auth');
-  authenticateToken = authMiddleware.authenticateToken;
-} catch (err) {
-  logger.warn('Auth middleware not found, using simple placeholder');
-  authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ error: 'Access token required' });
-    }
-    
-    // For demo purposes, accept any token that looks like a JWT
-    if (token.includes('.') || token.startsWith('demo-token')) {
-      req.user = { 
-        id: 'demo-user', 
-        username: 'demo',
-        platform: 'standalone'
-      };
-      next();
-    } else {
-      return res.status(403).json({ error: 'Invalid token' });
-    }
-  };
-}
-
-// Load routes with error handling
-try {
-  const authRoutes = require('./src/routes/auth');
-  app.use('/api/auth', authRoutes);
-} catch (err) {
-  logger.warn('Auth routes not available, creating placeholder');
-  app.use('/api/auth', (req, res) => {
-    if (req.method === 'POST' && req.path === '/login') {
-      res.json({ 
-        success: true, 
-        token: 'demo-token', 
-        user: { username: req.body.username, platform: req.body.platform } 
-      });
-    } else {
-      res.json({ success: true, authenticated: true, user: { username: 'demo' } });
-    }
-  });
-}
-
-try {
-  const fileRoutes = require('./src/routes/files');
-  app.use('/api/files', authenticateToken, fileRoutes);
-} catch (err) {
-  logger.warn('File routes not available, creating placeholder');
-  app.use('/api/files', authenticateToken, (req, res) => {
-    if (req.method === 'GET' && req.path === '/list') {
-      res.json({ 
-        success: true, 
-        files: [
-          {
-            fileName: 'demo-file.pdf',
-            size: 1024000,
-            contentType: 'application/pdf',
-            lastModified: new Date().toISOString()
-          }
-        ] 
-      });
-    } else if (req.method === 'GET' && req.path.startsWith('/buckets')) {
-      res.json({ 
-        success: true, 
-        buckets: ['demo-bucket-1', 'demo-bucket-2'] 
-      });
-    } else {
-      res.json({ success: true, message: 'File operation completed' });
-    }
-  });
-}
-
-try {
-  const ocrRoutes = require('./src/routes/ocr');
-  app.use('/api/ocr', authenticateToken, ocrRoutes);
-} catch (err) {
-  logger.warn('OCR routes not available, creating placeholder');
-  app.use('/api/ocr', authenticateToken, (req, res) => {
-    res.json({ success: true, extractedData: { text: 'Demo OCR result' } });
-  });
-}
-
-try {
-  const configRoutes = require('./src/routes/config');
-  app.use('/api/config', authenticateToken, configRoutes);
-} catch (err) {
-  logger.warn('Config routes not available, creating placeholder');
-  app.use('/api/config', authenticateToken, (req, res) => {
-    if (req.path === '/platforms') {
-      res.json({ 
-        success: true, 
-        platforms: {
-          gcp: { configured: true, name: 'Google Cloud Platform' },
-          aws: { configured: true, name: 'Amazon Web Services' },
-          azure: { configured: false, name: 'Microsoft Azure' }
-        }
-      });
-    } else {
-      res.json({ success: true });
-    }
-  });
-}
-
-try {
-  const redactionRoutes = require('./src/routes/redaction');
-  app.use('/api/redaction', authenticateToken, redactionRoutes);
-} catch (err) {
-  logger.warn('Redaction routes not available, creating placeholder');
-  app.use('/api/redaction', authenticateToken, (req, res) => {
-    res.json({ success: true, message: 'Redaction completed' });
-  });
-}
-
-// Main application route
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Get all templates
+app.get('/api/templates', (req, res) => {
+  const templateList = Object.values(templates).map(t => ({
+    id: t.id,
+    name: t.name,
+    variables: t.variables,
+    originalFormat: t.originalFormat,
+    hasFormatting: t.contentData.hasRichFormatting || false
+  }));
+  res.json(templateList);
 });
 
-// Embed route for Salesforce/ServiceNow
-app.get('/embed', (req, res) => {
-  const embedPath = path.join(__dirname, 'public', 'embed.html');
-  if (require('fs').existsSync(embedPath)) {
-    res.sendFile(embedPath);
+// Get specific template
+app.get('/api/templates/:id', (req, res) => {
+  const template = templates[req.params.id];
+  if (!template) {
+    return res.status(404).json({ error: 'Template not found' });
+  }
+  res.json(template);
+});
+
+// Generate document from template
+app.post('/api/generate/:templateId', async (req, res) => {
+  try {
+    const template = templates[req.params.templateId];
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    const variables = req.body.variables || {};
+    const outputFormat = req.body.format || 'txt'; // Default to txt
+    const generatedText = replaceVariables(template.contentData.text, variables);
+    
+    // Determine file extension for output
+    const fileExtensions = {
+      'txt': '.txt',
+      'docx': '.docx',
+      'pdf': '.pdf'
+    };
+    
+    const fileExt = fileExtensions[outputFormat] || '.txt';
+    const outputFileName = `generated-${Date.now()}${fileExt}`;
+    const outputPath = path.join('generated', outputFileName);
+    
+    if (!fs.existsSync('generated')) {
+      fs.mkdirSync('generated');
+    }
+    
+    // Generate document with preserved formatting
+    await generateFormattedDocument(template.contentData, variables, outputFormat, outputPath);
+
+    res.json({
+      content: generatedText,
+      downloadUrl: `/download/${outputFileName}`,
+      format: outputFormat,
+      filename: outputFileName,
+      preservedFormatting: template.contentData.formatting !== null
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Download generated document
+app.get('/download/:filename', (req, res) => {
+  const filePath = path.join('generated', req.params.filename);
+  if (fs.existsSync(filePath)) {
+    res.download(filePath);
   } else {
-    // Fallback to main page if embed.html doesn't exist
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.status(404).json({ error: 'File not found' });
   }
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  logger.error(`Error: ${err.message}`, {
-    stack: err.stack,
-    url: req.url,
-    method: req.method,
-    ip: req.ip
-  });
+// Get example variables for demonstration
+app.get('/api/example-variables', (req, res) => {
+  const examples = {
+    name: "John Doe",
+    company: "Acme Corporation",
+    date: new Date().toLocaleDateString(),
+    position: "Software Developer",
+    salary: "$75,000",
+    address: "123 Main Street, Anytown, USA",
+    phone: "(555) 123-4567",
+    email: "john.doe@email.com",
+    startDate: "January 15, 2024",
+    department: "Engineering",
+    manager: "Jane Smith",
+    projectName: "Website Redesign",
+    amount: "$10,000",
+    dueDate: "December 31, 2024"
+  };
+  
+  res.json(examples);
+});
 
-  if (err.message === 'Not allowed by CORS') {
-    return res.status(403).json({ error: 'CORS policy violation' });
+// Add these routes to your existing server.js file
+
+// CORS configuration for Salesforce
+app.use((req, res, next) => {
+  // Allow Salesforce domains
+  const allowedOrigins = [
+    'https://*.salesforce.com',
+    'https://*.force.com',
+    'https://*.lightning.force.com',
+    'https://*.my.salesforce.com',
+    'http://localhost:3000' // For development
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.some(allowed => origin && origin.match(allowed.replace('*', '.*')))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
   }
-
-  res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production' ? 'Something went wrong!' : err.message
-  });
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN'); // Allow iframe embedding from same origin
+  next();
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Initialize cloud services with error handling
-async function initializeCloudServices() {
+// New route: Get templates with Salesforce-specific metadata
+app.get('/api/salesforce/templates', (req, res) => {
   try {
-    const cloudService = require('./src/services/cloudService');
-    await cloudService.initializeCloudServices();
-    logger.info('Cloud services initialized successfully');
-  } catch (err) {
-    logger.warn('Cloud services not available or failed to initialize:', err.message);
-    logger.info('Running in demo mode without cloud services');
-    // Don't exit - continue running in demo mode
+    const salesforceTemplates = Object.values(templates).map(template => ({
+      id: template.id,
+      name: template.name,
+      variables: template.variables,
+      originalFormat: template.originalFormat,
+      hasFormatting: template.contentData.hasRichFormatting || false,
+      variableCount: template.variables.length,
+      salesforceCompatible: true,
+      mappableFields: getSalesforceFieldMappings(template.variables)
+    }));
+    
+    res.json(salesforceTemplates);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
+});
+
+// New route: Generate document with Salesforce record data
+app.post('/api/salesforce/generate/:templateId', async (req, res) => {
+  try {
+    const template = templates[req.params.templateId];
+    if (!template) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    const { recordData, outputFormat = 'pdf', recordId, objectType } = req.body;
+    
+    // Map Salesforce fields to template variables
+    const mappedVariables = mapSalesforceFields(recordData, template.variables);
+    
+    // Generate the document
+    const outputFileName = `${objectType}-${recordId}-${Date.now()}.${outputFormat}`;
+    const outputPath = path.join('generated', outputFileName);
+    
+    if (!fs.existsSync('generated')) {
+      fs.mkdirSync('generated');
+    }
+    
+    await generateFormattedDocument(template.contentData, mappedVariables, outputFormat, outputPath);
+    
+    // Convert to base64 for Salesforce
+    const fileBuffer = fs.readFileSync(outputPath);
+    const base64Data = fileBuffer.toString('base64');
+    
+    res.json({
+      success: true,
+      documentData: base64Data,
+      filename: outputFileName,
+      downloadUrl: `/download/${outputFileName}`,
+      format: outputFormat,
+      recordId: recordId,
+      templateName: template.name
+    });
+    
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// New route: Health check for Salesforce
+app.get('/api/salesforce/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    templatesCount: Object.keys(templates).length,
+    version: '1.0.0'
+  });
+});
+
+// Helper function to map Salesforce fields to template variables
+function mapSalesforceFields(recordData, templateVariables) {
+  const mappedVariables = {};
+  
+  // Common Salesforce field mappings
+  const fieldMappings = {
+    'name': ['Name', 'FirstName', 'LastName', 'Subject'],
+    'company': ['Account.Name', 'Company', 'CompanyName'],
+    'email': ['Email', 'Contact.Email'],
+    'phone': ['Phone', 'MobilePhone', 'WorkPhone'],
+    'address': ['BillingStreet', 'MailingStreet', 'Street'],
+    'city': ['BillingCity', 'MailingCity', 'City'],
+    'state': ['BillingState', 'MailingState', 'State'],
+    'postalcode': ['BillingPostalCode', 'MailingPostalCode', 'PostalCode'],
+    'country': ['BillingCountry', 'MailingCountry', 'Country'],
+    'date': ['CreatedDate', 'LastModifiedDate', 'CloseDate'],
+    'owner': ['Owner.Name', 'OwnerName'],
+    'amount': ['Amount', 'AnnualRevenue'],
+    'status': ['Status', 'StageName', 'Priority'],
+    'description': ['Description', 'Notes'],
+    'casenumber': ['CaseNumber'],
+    'priority': ['Priority'],
+    'type': ['Type'],
+    'industry': ['Industry'],
+    'title': ['Title'],
+    'department': ['Department']
+  };
+  
+  // First, try direct mapping
+  templateVariables.forEach(variable => {
+    const lowerVar = variable.toLowerCase();
+    
+    // Direct field match
+    if (recordData[variable]) {
+      mappedVariables[variable] = recordData[variable];
+      return;
+    }
+    
+    // Field mapping match
+    if (fieldMappings[lowerVar]) {
+      for (const fieldName of fieldMappings[lowerVar]) {
+        if (recordData[fieldName]) {
+          mappedVariables[variable] = recordData[fieldName];
+          break;
+        }
+      }
+    }
+    
+    // Fuzzy match
+    if (!mappedVariables[variable]) {
+      const fuzzyMatch = findFuzzyMatch(lowerVar, Object.keys(recordData));
+      if (fuzzyMatch && recordData[fuzzyMatch]) {
+        mappedVariables[variable] = recordData[fuzzyMatch];
+      }
+    }
+    
+    // Default value if no match
+    if (!mappedVariables[variable]) {
+      mappedVariables[variable] = `{{${variable}}}`;
+    }
+  });
+  
+  // Add special computed fields
+  mappedVariables['currentDate'] = new Date().toLocaleDateString();
+  mappedVariables['currentDateTime'] = new Date().toLocaleString();
+  mappedVariables['recordUrl'] = recordData.Id ? `https://yourinstance.salesforce.com/${recordData.Id}` : '';
+  
+  // Build full address if components exist
+  const addressComponents = [
+    recordData['BillingStreet'] || recordData['MailingStreet'],
+    recordData['BillingCity'] || recordData['MailingCity'],
+    recordData['BillingState'] || recordData['MailingState'],
+    recordData['BillingPostalCode'] || recordData['MailingPostalCode'],
+    recordData['BillingCountry'] || recordData['MailingCountry']
+  ].filter(Boolean);
+  
+  if (addressComponents.length > 0) {
+    mappedVariables['fullAddress'] = addressComponents.join(', ');
+  }
+  
+  return mappedVariables;
 }
 
-// Start server
-async function startServer() {
-  try {
-    // Try to initialize cloud services, but don't fail if they're not available
-    await initializeCloudServices();
+// Helper function for fuzzy matching
+function findFuzzyMatch(target, candidates) {
+  const targetLower = target.toLowerCase();
+  
+  // Exact match
+  let exactMatch = candidates.find(c => c.toLowerCase() === targetLower);
+  if (exactMatch) return exactMatch;
+  
+  // Contains match
+  let containsMatch = candidates.find(c => 
+    c.toLowerCase().includes(targetLower) || targetLower.includes(c.toLowerCase())
+  );
+  if (containsMatch) return containsMatch;
+  
+  // Similar match (simple algorithm)
+  let bestMatch = null;
+  let bestScore = 0;
+  
+  candidates.forEach(candidate => {
+    const candLower = candidate.toLowerCase();
+    let score = 0;
     
-    app.listen(PORT, () => {
-      logger.info(`Cloud File Manager server running on port ${PORT}`);
-      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      logger.info(`Main URL: http://localhost:${PORT}`);
-      logger.info(`Embed URL: http://localhost:${PORT}/embed`);
-      logger.info('Server started successfully!');
-    });
-  } catch (err) {
-    logger.error('Failed to start server:', err);
+    // Character similarity
+    for (let char of targetLower) {
+      if (candLower.includes(char)) score++;
+    }
     
-    // Try to start without cloud services
-    logger.info('Attempting to start server without cloud services...');
-    app.listen(PORT, () => {
-      logger.info(`Cloud File Manager server running on port ${PORT} (Demo Mode)`);
-      logger.info(`Main URL: http://localhost:${PORT}`);
-    });
-  }
+    // Length similarity bonus
+    const lengthDiff = Math.abs(targetLower.length - candLower.length);
+    score -= lengthDiff * 0.1;
+    
+    if (score > bestScore && score > targetLower.length * 0.6) {
+      bestScore = score;
+      bestMatch = candidate;
+    }
+  });
+  
+  return bestMatch;
 }
 
-// Start the server
-startServer();
+// Helper function to get Salesforce field mappings for a template
+function getSalesforceFieldMappings(templateVariables) {
+  return templateVariables.map(variable => ({
+    templateVariable: variable,
+    suggestedSalesforceFields: getSuggestedFields(variable),
+    mappingConfidence: getMappingConfidence(variable)
+  }));
+}
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  process.exit(0);
+function getSuggestedFields(variable) {
+  const lowerVar = variable.toLowerCase();
+  
+  const suggestions = {
+    'name': ['Name', 'FirstName + LastName', 'Subject'],
+    'company': ['Account.Name', 'CompanyName'],
+    'email': ['Email', 'Contact.Email'],
+    'phone': ['Phone', 'MobilePhone'],
+    'address': ['BillingStreet', 'MailingStreet'],
+    'amount': ['Amount', 'AnnualRevenue'],
+    'date': ['CreatedDate', 'CloseDate'],
+    'owner': ['Owner.Name']
+  };
+  
+  return suggestions[lowerVar] || [variable];
+}
+
+function getMappingConfidence(variable) {
+  const highConfidence = ['name', 'email', 'phone', 'company', 'address'];
+  const mediumConfidence = ['amount', 'date', 'status', 'owner'];
+  
+  const lowerVar = variable.toLowerCase();
+  
+  if (highConfidence.includes(lowerVar)) return 'high';
+  if (mediumConfidence.includes(lowerVar)) return 'medium';
+  return 'low';
+}
+
+// Enhanced HTML page with Salesforce integration
+app.get('/salesforce', (req, res) => {
+  const { recordId, objectType, templateId } = req.query;
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Document Generator - Salesforce Integration</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/design-system/2.22.2/styles/salesforce-lightning-design-system.min.css">
+        <style>
+            body { margin: 0; padding: 20px; background: #f3f2f2; }
+            .salesforce-mode { border: 2px solid #0176d3; border-radius: 8px; }
+        </style>
+    </head>
+    <body class="slds-scope">
+        <div class="slds-card salesforce-mode">
+            <div class="slds-card__header">
+                <h2 class="slds-text-heading_medium">
+                    Document Generator - Salesforce Mode
+                </h2>
+                <p class="slds-text-body_small">
+                    Record ID: ${recordId || 'Not provided'} | Object: ${objectType || 'Not provided'}
+                </p>
+            </div>
+            <div class="slds-card__body slds-card__body_inner">
+                <div id="app">Loading...</div>
+            </div>
+        </div>
+        
+        <script>
+            // Listen for messages from Salesforce LWC
+            window.addEventListener('message', function(event) {
+                console.log('Received message:', event.data);
+                
+                if (event.data.source === 'salesforce') {
+                    handleSalesforceMessage(event.data);
+                }
+            });
+            
+            function handleSalesforceMessage(message) {
+                switch(message.action) {
+                    case 'recordData':
+                        populateRecordData(message.data);
+                        break;
+                    case 'selectTemplate':
+                        selectTemplate(message.data.templateId);
+                        break;
+                    case 'fillRecordData':
+                        fillFormWithRecordData(message.data.variables);
+                        break;
+                }
+            }
+            
+            function populateRecordData(data) {
+                console.log('Record data received:', data);
+                // Implement your UI updates here
+            }
+            
+            function selectTemplate(templateId) {
+                console.log('Template selected:', templateId);
+                // Implement template selection logic
+            }
+            
+            function fillFormWithRecordData(variables) {
+                console.log('Filling form with variables:', variables);
+                // Implement form filling logic
+            }
+            
+            // Notify Salesforce that the app is ready
+            function notifySalesforce(action, data) {
+                window.parent.postMessage({
+                    action: action,
+                    data: data,
+                    source: 'nodeapp'
+                }, '*');
+            }
+            
+            // Initialize
+            document.addEventListener('DOMContentLoaded', function() {
+                notifySalesforce('ready', { recordId: '${recordId}', objectType: '${objectType}' });
+            });
+        </script>
+    </body>
+    </html>
+  `);
 });
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  process.exit(0);
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log('Upload templates and generate documents!');
 });
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception:', err);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
-});
-
-module.exports = app;
